@@ -1,25 +1,16 @@
-# TV Ads App
+# tv_app
 
-Flutter app cho Smart TV / Android Box trong he thong quan ly va phat quang cao.
+A new Flutter project.
 
-## Phase 3
+## Getting Started
 
-- Dang ky TV bang `device_code`.
-- Luu cau hinh server bang Hive.
-- Lay playlist tu backend.
-- Phat video fullscreen bang `video_player`.
-- Gui heartbeat co ban.
+This project is a starting point for a Flutter application.
 
-## Chay app
+A few resources to get you started if this is your first Flutter project:
 
-```bash
-flutter run
-```
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-Backend URL mac dinh cho Android Emulator:
-
-```txt
-http://10.0.2.2:5001
-```
-
-Neu demo tren Android Box that, hay thay bang IP LAN cua may chay backend.
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
