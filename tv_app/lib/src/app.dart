@@ -1,25 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/player/presentation/tv_home_screen.dart';
+import 'features/device/application/device_provider.dart';
+import 'features/device/presentation/device_register_screen.dart';
+import 'features/player/presentation/player_screen.dart';
 
-class TvAdsApp extends ConsumerWidget {
-  const TvAdsApp({super.key});
+class SmartTvAdsApp extends ConsumerWidget {
+  const SmartTvAdsApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final deviceTokenAsync = ref.watch(deviceTokenProvider);
+
     return MaterialApp(
+      title: 'Smart Tv Ads',
       debugShowCheckedModeBanner: false,
-      title: 'TV Ads Player',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff0ea5a3),
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: Colors.black,
-        useMaterial3: true,
+      theme: ThemeData.dark(),
+      home: deviceTokenAsync.when(
+        loading: () => const _SplashScreen(),
+        error: (error, stackTrace) => const DeviceRegisterScreen(),
+        data: (deviceToken) {
+          if (deviceToken == null || deviceToken.isEmpty) {
+            return const DeviceRegisterScreen();
+          }
+
+          return PlayerScreen(deviceToken: deviceToken);
+        },
       ),
-      home: const TvHomeScreen(),
+    );
+  }
+}
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }
