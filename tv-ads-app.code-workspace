@@ -1,0 +1,17 @@
+{
+  "folders": [
+    {
+      "name": "Flutter App",
+      "path": "tv_app"
+    },
+    {
+      "name": "Android",
+      "path": "tv_app/android"
+    }
+  ],
+  "settings": {
+    "intellij.buildTool": "gradle",
+    "intellij.jdkForSymbolResolution": "C:\\Program Files\\Java\\jdk-17",
+    "kotlin.languageServer.enabled": false
+  }
+}
