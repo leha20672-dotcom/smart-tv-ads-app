@@ -11,18 +11,28 @@ class DeviceRepository {
   final DeviceLocalDataSource localDataSource;
   final DeviceRemoteDataSource remoteDataSource;
 
-  Future<Device> activateDevice(String deviceCode) async {
-    final device = await remoteDataSource.activateDevice(deviceCode);
-
-    await localDataSource.saveDevice(
-      deviceCode: device.deviceCode,
-      deviceToken: device.deviceToken,
+  Future<Device> registerDevice({
+    required String deviceCode,
+    required String name,
+    String orientation = 'landscape',
+  }) async {
+    final device = await remoteDataSource.registerDevice(
+      deviceCode: deviceCode,
+      name: name,
+      orientation: orientation,
     );
+
+    await localDataSource.saveDevice(device);
+
     return device;
   }
 
-  Future<String?> getDeviceToken() {
-    return localDataSource.getDeviceToken();
+  Future<int?> getDeviceId() {
+    return localDataSource.getDeviceId();
+  }
+
+  Future<String?> getDeviceCode() {
+    return localDataSource.getDeviceCode();
   }
 
   Future<void> clearDevice() {

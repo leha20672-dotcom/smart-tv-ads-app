@@ -10,21 +10,21 @@ class SmartTvAdsApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final deviceTokenAsync = ref.watch(deviceTokenProvider);
+    final deviceIdAsync = ref.watch(deviceIdProvider);
 
     return MaterialApp(
-      title: 'Smart Tv Ads',
+      title: 'Smart TV Ads',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
-      home: deviceTokenAsync.when(
+      home: deviceIdAsync.when(
         loading: () => const _SplashScreen(),
         error: (error, stackTrace) => const DeviceRegisterScreen(),
-        data: (deviceToken) {
-          if (deviceToken == null || deviceToken.isEmpty) {
+        data: (deviceId) {
+          if (deviceId == null) {
             return const DeviceRegisterScreen();
           }
 
-          return PlayerScreen(deviceToken: deviceToken);
+          return PlayerScreen(deviceId: deviceId);
         },
       ),
     );
@@ -38,7 +38,9 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       backgroundColor: Colors.black,
-      body: Center(child: CircularProgressIndicator()),
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
     );
   }
 }

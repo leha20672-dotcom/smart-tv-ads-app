@@ -6,12 +6,20 @@ class DeviceRemoteDataSource {
 
   final ApiClient _apiClient;
 
-  Future<Device> activateDevice(String deviceCode) async {
+  Future<Device> registerDevice({
+    required String deviceCode,
+    required String name,
+    String orientation = 'landscape',
+  }) async {
     final response = await _apiClient.post(
-      '/devices/activate',
-      body: {'device_code': deviceCode},
+      '/devices/register',
+      body: {
+        'device_code': deviceCode,
+        'name': name,
+        'orientation': orientation,
+      },
     );
 
-    return Device.fromJson(response['data']);
+    return Device.fromJson(response['data'] as Map<String, dynamic>);
   }
 }

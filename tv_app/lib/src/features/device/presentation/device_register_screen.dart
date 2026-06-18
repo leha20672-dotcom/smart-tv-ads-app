@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tv_app/src/features/device/application/device_provider.dart'
-    as device_providers;
 
 import '../../../core/theme/app_colors.dart';
+import '../application/device_provider.dart';
 import 'widgets/app_logo_header.dart';
 
 class DeviceRegisterScreen extends ConsumerStatefulWidget {
@@ -16,6 +15,7 @@ class DeviceRegisterScreen extends ConsumerStatefulWidget {
 
 class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
   final TextEditingController _deviceCodeController = TextEditingController();
+  final TextEditingController _deviceNameController = TextEditingController();
 
   String? _errorText;
   bool _isLoading = false;
@@ -23,23 +23,24 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
   @override
   void dispose() {
     _deviceCodeController.dispose();
+    _deviceNameController.dispose();
     super.dispose();
   }
 
   Future<void> _submitDeviceCode() async {
     final deviceCode = _deviceCodeController.text.trim();
+    final deviceName = _deviceNameController.text.trim();
 
     if (deviceCode.isEmpty) {
       setState(() {
-        _errorText = 'Vui l\u00f2ng nh\u1eadp m\u00e3 thi\u1ebft b\u1ecb';
+        _errorText = 'Vui lòng nhập mã thiết bị';
       });
       return;
     }
 
-    if (deviceCode.length < 4) {
+    if (deviceName.isEmpty) {
       setState(() {
-        _errorText =
-            'M\u00e3 thi\u1ebft b\u1ecb kh\u00f4ng h\u1ee3p l\u1ec7';
+        _errorText = 'Vui lòng nhập tên thiết bị';
       });
       return;
     }
@@ -50,22 +51,26 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
     });
 
     try {
-      await ref.refresh(
-        device_providers.activateDeviceProvider(deviceCode).future,
-      );
-      ref.invalidate(device_providers.deviceTokenProvider);
-    } catch (error) {
-      if (!mounted) return;
+      final repository = ref.read(deviceRepositoryProvider);
 
+      await repository.registerDevice(
+        deviceCode: deviceCode,
+        name: deviceName,
+        orientation: 'landscape',
+      );
+
+      ref.invalidate(deviceIdProvider);
+      ref.invalidate(deviceCodeProvider);
+    } catch (error) {
       setState(() {
-        _errorText = error.toString().replaceFirst('Exception: ', '');
+        _errorText = 'Không thể đăng ký thiết bị. Kiểm tra API hoặc mã thiết bị.';
       });
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -91,18 +96,22 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const AppLogoHeader(),
+
                           const SizedBox(height: 20),
+
                           const Text(
-                            '\u0110\u0103ng k\u00fd thi\u1ebft b\u1ecb',
+                            'Đăng ký thiết bị',
                             style: TextStyle(
                               color: AppColors.title,
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+
                           const SizedBox(height: 12),
+
                           Text(
-                            'Nh\u1eadp m\u00e3 thi\u1ebft b\u1ecb \u0111\u01b0\u1ee3c cung c\u1ea5p t\u1eeb h\u1ec7 th\u1ed1ng qu\u1ea3n tr\u1ecb \u0111\u1ec3 k\u00edch ho\u1ea1t Android Box / Smart TV.',
+                            'Nhập mã thiết bị và tên thiết bị để kết nối Android Box / Smart TV với hệ thống quản trị.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 18,
@@ -110,34 +119,29 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
                               height: 1.4,
                             ),
                           ),
+
                           const SizedBox(height: 32),
+
                           TextField(
                             controller: _deviceCodeController,
-                            enabled: !_isLoading,
-                            onSubmitted: (_) {
-                              if (!_isLoading) {
-                                _submitDeviceCode();
-                              }
-                            },
                             textAlign: TextAlign.center,
+                            enabled: !_isLoading,
                             style: const TextStyle(
-                              fontSize: 26,
+                              fontSize: 24,
                               color: AppColors.title,
                               letterSpacing: 2,
                               fontWeight: FontWeight.bold,
                             ),
                             decoration: InputDecoration(
-                              labelText: 'VD: TV-123456',
+                              labelText: 'Mã thiết bị - VD: TV-123456',
                               floatingLabelBehavior: FloatingLabelBehavior.auto,
                               labelStyle: TextStyle(
                                 color: Colors.grey.shade600,
-                                fontSize: 22,
-                                letterSpacing: 1,
+                                fontSize: 18,
                               ),
                               floatingLabelStyle: const TextStyle(
                                 color: AppColors.primary,
-                                fontSize: 18,
-                                letterSpacing: 1,
+                                fontSize: 16,
                               ),
                               errorText: _errorText,
                               filled: true,
@@ -165,13 +169,62 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
                               ),
                             ),
                           ),
+
+                          const SizedBox(height: 18),
+
+                          TextField(
+                            controller: _deviceNameController,
+                            textAlign: TextAlign.center,
+                            enabled: !_isLoading,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              color: AppColors.title,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Tên thiết bị - VD: TV Cổng 1',
+                              floatingLabelBehavior: FloatingLabelBehavior.auto,
+                              labelStyle: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 18,
+                              ),
+                              floatingLabelStyle: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 16,
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey.shade200,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 20,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(
+                                  color: AppColors.primary,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+
                           const SizedBox(height: 28),
+
                           SizedBox(
                             width: double.infinity,
                             height: 58,
                             child: ElevatedButton(
-                              onPressed:
-                                  _isLoading ? null : _submitDeviceCode,
+                              onPressed: _isLoading ? null : _submitDeviceCode,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primary,
                                 foregroundColor: AppColors.surface,
@@ -184,21 +237,15 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
                                 ),
                               ),
                               child: _isLoading
-                                  ? const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 3,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'K\u00edch ho\u1ea1t thi\u1ebft b\u1ecb',
-                                    ),
+                                  ? const CircularProgressIndicator()
+                                  : const Text('Kích hoạt thiết bị'),
                             ),
                           ),
+
                           const SizedBox(height: 20),
+
                           Text(
-                            'N\u1ebfu ch\u01b0a c\u00f3 m\u00e3, vui l\u00f2ng t\u1ea1o thi\u1ebft b\u1ecb tr\u00ean Web Admin tr\u01b0\u1edbc.',
+                            'Sau khi kích hoạt, thiết bị sẽ được lưu vào bộ nhớ cục bộ.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 15,
