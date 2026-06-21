@@ -1,4 +1,5 @@
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:flutter/foundation.dart';
 
 class RestartService {
   static Future<void> initialize() async {
@@ -22,5 +23,5 @@ class RestartService {
 
 @pragma('vm:entry-point')
 Future<void> restartCallback() async {
-  print('Restart App');
+  debugPrint("Restart App");
 }

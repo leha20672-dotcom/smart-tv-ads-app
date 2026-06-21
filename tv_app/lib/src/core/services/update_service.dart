@@ -1,9 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter/foundation.dart';
 
 class UpdateService {
 
-  final Dio _dio = Dio();
+  //final Dio _dio = Dio();
 
   Future<void> checkUpdate() async {
 
@@ -13,8 +14,8 @@ class UpdateService {
     final currentVersion =
         packageInfo.version;
 
-    print(
-      "Current Version: $currentVersion"
+   debugPrint(
+    "Current Version: $currentVersion",
     );
 
     // API sẽ bổ sung sau
