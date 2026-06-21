@@ -1,22 +1,17 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tv_app/src/app.dart';
+import 'package:tv_app/src/features/schedule/domain/media.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const SmartTvAdsApp());
+  test('media parser accepts schedule API playlist item', () {
+    final media = Media.fromJson({
+      'media_id': 9,
+      'title': 'Promo',
+      'file_url': 'https://example.com/storage/promo.mp4',
+      'type': 'video',
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(media.id, 9);
+    expect(media.name, 'Promo');
+    expect(media.fileType, MediaType.video);
   });
 }

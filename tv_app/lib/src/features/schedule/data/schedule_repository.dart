@@ -1,19 +1,46 @@
 import '../domain/address_schedule.dart';
 import '../domain/media.dart';
+import '../domain/playable_media.dart';
 import '../domain/schedule.dart';
 import '../domain/schedule_media.dart';
 import 'schedule_local_data_source.dart';
 import 'schedule_mock_data_source.dart';
+import 'schedule_remote_data_source.dart';
 
 class ScheduleRepository {
   ScheduleRepository({
     required ScheduleMockDataSource mockDataSource,
     required ScheduleLocalDataSource localDataSource,
-  }) : _mockDataSource = mockDataSource,
-       _localDataSource = localDataSource;
+    required ScheduleRemoteDataSource remoteDataSource,
+  })  : _mockDataSource = mockDataSource,
+        _localDataSource = localDataSource,
+        _remoteDataSource = remoteDataSource;
 
   final ScheduleMockDataSource _mockDataSource;
   final ScheduleLocalDataSource _localDataSource;
+  final ScheduleRemoteDataSource _remoteDataSource;
+
+  Future<List<PlayableMedia>> getCurrentPlaylist({
+    required int deviceId,
+    required String? apiToken,
+  }) async {
+    try {
+      if (apiToken == null || apiToken.isEmpty) {
+        throw Exception('Missing device API token');
+      }
+
+      final playlist = await _remoteDataSource.getCurrentPlaylist(
+        deviceId: deviceId,
+        apiToken: apiToken,
+      );
+
+      await _localDataSource.cacheCurrentPlaylist(playlist);
+
+      return playlist;
+    } catch (_) {
+      return _localDataSource.getCachedCurrentPlaylist();
+    }
+  }
 
   Future<int?> getDeviceAddressId(int deviceId) {
     return _mockDataSource.getDeviceAddressId(deviceId);

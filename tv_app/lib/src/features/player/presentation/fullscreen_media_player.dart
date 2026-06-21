@@ -1,15 +1,15 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
-import 'package:flutter/services.dart';
 
+import '../../device/application/device_reset_provider.dart';
 import '../../schedule/domain/media.dart';
 import '../../schedule/domain/playable_media.dart';
-
 import '../application/playback_log_provider.dart';
 import '../domain/playback_log.dart';
-import '../../device/application/device_reset_provider.dart';
 
 class FullscreenMediaPlayer extends ConsumerStatefulWidget {
   const FullscreenMediaPlayer({super.key, required this.playlist});
@@ -27,7 +27,7 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
   DateTime? _lastPressOneAt;
 
   int _currentIndex = 0;
-  Timer? _imageTimer;
+  Timer? _mediaTimer;
   VideoPlayerController? _videoController;
   PlaybackLog? _currentLog;
   bool _isChangingMedia = false;
@@ -59,43 +59,49 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
 
   @override
   void dispose() {
-    _imageTimer?.cancel();
+    _mediaTimer?.cancel();
     _videoController?.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   Future<void> _playCurrentMedia() async {
-    if (_isChangingMedia) return;
+    if (_isChangingMedia || widget.playlist.isEmpty) return;
 
     _isChangingMedia = true;
 
-    _imageTimer?.cancel();
+    _mediaTimer?.cancel();
     await _videoController?.dispose();
     _videoController = null;
 
     final playableMedia = _currentMedia;
     final media = playableMedia.media;
-
     final logRepository = ref.read(playbackLogRepositoryProvider);
 
     _currentLog = await logRepository.startLog(
       scheduleId: playableMedia.scheduleId,
       mediaId: media.id,
     );
-    try {
-      if (media.fileType == MediaType.image) {
-        _playImage(playableMedia.duration);
-        setState(() {});
-        return;
-      }
 
-      if (media.fileType == MediaType.video) {
-        await _playVideo(media.filePath);
-        return;
+    try {
+      switch (media.fileType) {
+        case MediaType.image:
+        case MediaType.url:
+          _playTimedMedia(playableMedia.duration);
+          if (mounted) {
+            setState(() {});
+          }
+          return;
+
+        case MediaType.video:
+          await _playVideo(media.filePath);
+          return;
+
+        case MediaType.music:
+          await _markCurrentLogFailed('Unsupported media type');
+          _goToNextMedia();
+          return;
       }
-      await _markCurrentLogFailed('Unsupported media type');
-      _goToNextMedia();
     } catch (error) {
       await _markCurrentLogFailed(error.toString());
       _goToNextMedia();
@@ -104,15 +110,19 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
     }
   }
 
-  void _playImage(int durationSeconds) {
-    _imageTimer = Timer(Duration(seconds: durationSeconds), () async {
+  void _playTimedMedia(int durationSeconds) {
+    final safeDuration = durationSeconds <= 0 ? 10 : durationSeconds;
+
+    _mediaTimer = Timer(Duration(seconds: safeDuration), () async {
       await _markCurrentLogCompleted();
       _goToNextMedia();
     });
   }
 
   Future<void> _playVideo(String path) async {
-    final controller = VideoPlayerController.asset(path);
+    final controller = _isNetworkSource(path)
+        ? VideoPlayerController.networkUrl(Uri.parse(path))
+        : VideoPlayerController.asset(path);
 
     _videoController = controller;
 
@@ -123,11 +133,11 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
     controller.addListener(() async {
       final value = controller.value;
 
-      if (!value.isInitialized) return;
+      if (!value.isInitialized || _currentLog == null) return;
 
       final isEnded = value.position >= value.duration;
 
-      if (isEnded && _currentLog != null) {
+      if (isEnded) {
         await _markCurrentLogCompleted();
         _goToNextMedia();
       }
@@ -143,11 +153,11 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
 
     if (log == null) return;
 
+    _currentLog = null;
+
     final logRepository = ref.read(playbackLogRepositoryProvider);
 
     await logRepository.completeLog(log);
-
-    _currentLog = null;
   }
 
   Future<void> _markCurrentLogFailed(String errorMessage) async {
@@ -155,27 +165,27 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
 
     if (log == null) return;
 
+    _currentLog = null;
+
     final logRepository = ref.read(playbackLogRepositoryProvider);
 
     await logRepository.failLog(log: log, errorMessage: errorMessage);
-
-    _currentLog = null;
   }
 
   void _goToNextMedia() {
-    if (!mounted) return;
+    if (!mounted || widget.playlist.isEmpty) return;
 
-    _imageTimer?.cancel();
+    _mediaTimer?.cancel();
 
     setState(() {
       _currentIndex = (_currentIndex + 1) % widget.playlist.length;
     });
 
-    _playCurrentMedia();
+    Future.microtask(_playCurrentMedia);
   }
 
   Future<void> _showResetConfirmDialog() async {
-    _imageTimer?.cancel();
+    _mediaTimer?.cancel();
     await _videoController?.pause();
 
     if (!mounted) return;
@@ -191,7 +201,7 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
             style: TextStyle(color: Colors.white),
           ),
           content: const Text(
-            'Thiết bị đã bị đăng xuất và quay lại màn hình đăng ký. Bạn có chắc không?',
+            'Thiết bị sẽ đăng xuất và quay lại màn hình đăng ký. Bạn có chắc không?',
             style: TextStyle(color: Colors.white70),
           ),
           actions: [
@@ -229,8 +239,8 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
       return;
     }
 
-    if (media.fileType == MediaType.image) {
-      _playImage(_currentMedia.duration);
+    if (media.fileType == MediaType.image || media.fileType == MediaType.url) {
+      _playTimedMedia(_currentMedia.duration);
     }
   }
 
@@ -263,6 +273,7 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
   @override
   Widget build(BuildContext context) {
     final media = _currentMedia.media;
+
     return KeyboardListener(
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
@@ -276,14 +287,7 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
   Widget _buildMediaView(Media media) {
     switch (media.fileType) {
       case MediaType.image:
-        return Image.asset(
-          media.filePath,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            _markCurrentLogFailed(error.toString());
-            return _buildErrorView('Không thể hiển thị hình ảnh');
-          },
-        );
+        return _buildImage(media.filePath);
 
       case MediaType.video:
         final controller = _videoController;
@@ -302,11 +306,48 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
         );
 
       case MediaType.url:
-        return _buildUnsupportedView('Url/WebView sẽ làm sau');
+        return _buildUrlView(media.filePath);
 
       case MediaType.music:
         return _buildUnsupportedView('Music sẽ làm sau');
     }
+  }
+
+  Widget _buildImage(String path) {
+    final image = _isNetworkSource(path)
+        ? Image.network(path, fit: BoxFit.cover, errorBuilder: _imageError)
+        : Image.asset(path, fit: BoxFit.cover, errorBuilder: _imageError);
+
+    return SizedBox.expand(child: image);
+  }
+
+  Widget _imageError(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    Future.microtask(() async {
+      await _markCurrentLogFailed(error.toString());
+      _goToNextMedia();
+    });
+
+    return _buildErrorView('Không thể hiển thị hình ảnh');
+  }
+
+  Widget _buildUrlView(String url) {
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48),
+          child: Text(
+            url,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontSize: 28),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildUnsupportedView(String message) {
@@ -325,5 +366,9 @@ class _FullscreenMediaPlayerState extends ConsumerState<FullscreenMediaPlayer> {
         style: const TextStyle(color: Colors.redAccent, fontSize: 28),
       ),
     );
+  }
+
+  bool _isNetworkSource(String path) {
+    return path.startsWith('http://') || path.startsWith('https://');
   }
 }

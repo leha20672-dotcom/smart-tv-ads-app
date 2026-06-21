@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/constants/storage_keys.dart';
 import '../domain/address_schedule.dart';
 import '../domain/media.dart';
+import '../domain/playable_media.dart';
 import '../domain/schedule.dart';
 import '../domain/schedule_media.dart';
 
@@ -43,6 +44,14 @@ class ScheduleLocalDataSource {
     final jsonList = mediaList.map((item) => item.toJson()).toList();
 
     await box.put(StorageKeys.media, jsonList);
+  }
+
+  Future<void> cacheCurrentPlaylist(List<PlayableMedia> playlist) async {
+    final box = await _openBox();
+
+    final jsonList = playlist.map((item) => item.toJson()).toList();
+
+    await box.put(StorageKeys.currentPlaylist, jsonList);
   }
 
   Future<List<AddressSchedule>> getCacheAddressSchedules() async {
@@ -93,6 +102,18 @@ class ScheduleLocalDataSource {
     ).map(Media.fromJson).toList();
   }
 
+  Future<List<PlayableMedia>> getCachedCurrentPlaylist() async {
+    final box = await _openBox();
+
+    final rawList = box.get(StorageKeys.currentPlaylist);
+
+    if (rawList == null) return [];
+
+    return List<Map<String, dynamic>>.from(
+      rawList.map((item) => Map<String, dynamic>.from(item)),
+    ).map(PlayableMedia.fromJson).toList();
+  }
+
   Future<void> clearScheduleCache() async {
     final box = await _openBox();
 
@@ -100,5 +121,6 @@ class ScheduleLocalDataSource {
     await box.delete(StorageKeys.schedules);
     await box.delete(StorageKeys.scheduleMedia);
     await box.delete(StorageKeys.media);
+    await box.delete(StorageKeys.currentPlaylist);
   }
 }

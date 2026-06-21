@@ -22,13 +22,13 @@ class Schedule {
 
   factory Schedule.fromJson(Map<String, dynamic> json) {
     return Schedule(
-      id: json['id'] as int,
-      name: json['name'] as String,
+      id: _asInt(json['id'] ?? json['schedule_id']),
+      name: (json['name'] ?? json['schedule_name'] ?? '') as String,
       startDate: DateTime.parse(json['start_date'] as String),
       endDate: DateTime.parse(json['end_date'] as String),
       startTime: json['start_time'] as String, 
       endTime: json['end_time'] as String,
-      daysOfWeek: List<int>.from(json['days_of_week'] as List),
+      daysOfWeek: _daysOfWeekFromJson(json['days_of_week']),
     );
   }
 
@@ -42,5 +42,32 @@ class Schedule {
       'end_time': endTime,
       'days_of_week': daysOfWeek,  
     };
+  }
+
+  static List<int> _daysOfWeekFromJson(Object? value) {
+    if (value is List) {
+      final days = value.map(_asInt).where((day) => day > 0).toList();
+      return days.isEmpty ? const [1, 2, 3, 4, 5, 6, 7] : days;
+    }
+
+    if (value is String && value.isNotEmpty) {
+      final normalized = value.replaceAll('[', '').replaceAll(']', '');
+      final days = normalized
+          .split(',')
+          .map((day) => _asInt(day.trim()))
+          .where((day) => day > 0)
+          .toList();
+
+      return days.isEmpty ? const [1, 2, 3, 4, 5, 6, 7] : days;
+    }
+
+    return const [1, 2, 3, 4, 5, 6, 7];
+  }
+
+  static int _asInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 }

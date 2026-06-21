@@ -17,12 +17,12 @@ class ScheduleMedia {
 
   factory ScheduleMedia.fromJson(Map<String, dynamic> json) {
     return ScheduleMedia(
-      id: json['id'] as int,
-      scheduleId: json['schedule_id'] as int,
-      mediaId: json['media_id'] as int,
-      zoneName: json['zone_name'] as String,
-      playOrder: json['play_order'] as int,
-      duration: json['duration'] as int,
+      id: _asInt(json['id']),
+      scheduleId: _asInt(json['schedule_id']),
+      mediaId: _asInt(json['media_id'] ?? json['id']),
+      zoneName: (json['zone_name'] ?? 'main_zone') as String,
+      playOrder: _asInt(json['play_order'], defaultValue: 1),
+      duration: _asInt(json['duration'], defaultValue: 10),
     );
   }
 
@@ -35,5 +35,12 @@ class ScheduleMedia {
       'play_order': playOrder,
       'duration': duration,
     };
+  }
+
+  static int _asInt(Object? value, {int defaultValue = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? defaultValue;
+    return defaultValue;
   }
 }

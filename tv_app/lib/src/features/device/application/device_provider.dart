@@ -15,9 +15,7 @@ final deviceLocalDataSourceProvider = Provider<DeviceLocalDataSource>((ref) {
 });
 
 final deviceRemoteDataSourceProvider = Provider<DeviceRemoteDataSource>((ref) {
-  return DeviceRemoteDataSource(
-    ref.read(apiClientProvider),
-  );
+  return DeviceRemoteDataSource(ref.read(apiClientProvider));
 });
 
 final deviceRepositoryProvider = Provider<DeviceRepository>((ref) {
@@ -37,25 +35,35 @@ final deviceCodeProvider = FutureProvider<String?>((ref) async {
   return repository.getDeviceCode();
 });
 
+final deviceTokenProvider = FutureProvider<String?>((ref) async {
+  final repository = ref.read(deviceRepositoryProvider);
+  return repository.getDeviceToken();
+});
+
+final deviceStatusProvider = FutureProvider<String?>((ref) async {
+  final repository = ref.read(deviceRepositoryProvider);
+  return repository.getDeviceStatus();
+});
+
 final registerDeviceProvider =
     FutureProvider.family<Device, RegisterDeviceParams>((ref, params) async {
-  final repository = ref.read(deviceRepositoryProvider);
+      final repository = ref.read(deviceRepositoryProvider);
 
-  return repository.registerDevice(
-    deviceCode: params.deviceCode,
-    name: params.name,
-    orientation: params.orientation,
-  );
-});
+      return repository.createDevice(
+        authToken: params.authToken,
+        name: params.name,
+        type: params.type,
+      );
+    });
 
 class RegisterDeviceParams {
   const RegisterDeviceParams({
-    required this.deviceCode,
+    required this.authToken,
     required this.name,
-    this.orientation = 'landscape',
+    this.type = 'android_box',
   });
 
-  final String deviceCode;
+  final String authToken;
   final String name;
-  final String orientation;
+  final String type;
 }

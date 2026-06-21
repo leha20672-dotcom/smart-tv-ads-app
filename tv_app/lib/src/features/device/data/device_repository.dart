@@ -11,15 +11,15 @@ class DeviceRepository {
   final DeviceLocalDataSource localDataSource;
   final DeviceRemoteDataSource remoteDataSource;
 
-  Future<Device> registerDevice({
-    required String deviceCode,
+  Future<Device> createDevice({
+    required String authToken,
     required String name,
-    String orientation = 'landscape',
+    String type = 'android_box',
   }) async {
-    final device = await remoteDataSource.registerDevice(
-      deviceCode: deviceCode,
+    final device = await remoteDataSource.createDevice(
+      authToken: authToken,
       name: name,
-      orientation: orientation,
+      type: type,
     );
 
     await localDataSource.saveDevice(device);
@@ -33,6 +33,28 @@ class DeviceRepository {
 
   Future<String?> getDeviceCode() {
     return localDataSource.getDeviceCode();
+  }
+
+  Future<String?> getDeviceStatus() {
+    return localDataSource.getDeviceStatus();
+  }
+
+  Future<String?> getDeviceToken() {
+    return localDataSource.getDeviceToken();
+  }
+
+  Future<String> refreshDeviceStatus({
+    required int deviceId,
+    required String authToken,
+  }) async {
+    final status = await remoteDataSource.getDeviceStatus(
+      deviceId: deviceId,
+      authToken: authToken,
+    );
+
+    await localDataSource.updateDeviceStatus(status);
+
+    return status;
   }
 
   Future<void> clearDevice() {

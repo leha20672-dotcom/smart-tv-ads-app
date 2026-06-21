@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/device/application/device_provider.dart';
+import 'features/auth/application/auth_provider.dart';
 import 'features/device/presentation/device_register_screen.dart';
 import 'features/player/presentation/player_screen.dart';
 
@@ -10,21 +10,21 @@ class SmartTvAdsApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final deviceIdAsync = ref.watch(deviceIdProvider);
+    final routeStateAsync = ref.watch(appRouteStateProvider);
 
     return MaterialApp(
       title: 'Smart TV Ads',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
-      home: deviceIdAsync.when(
+      home: routeStateAsync.when(
         loading: () => const _SplashScreen(),
         error: (error, stackTrace) => const DeviceRegisterScreen(),
-        data: (deviceId) {
-          if (deviceId == null) {
+        data: (routeState) {
+          if (!routeState.canPlay) {
             return const DeviceRegisterScreen();
           }
 
-          return PlayerScreen(deviceId: deviceId);
+          return PlayerScreen(deviceId: routeState.deviceId!);
         },
       ),
     );
@@ -38,9 +38,7 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       backgroundColor: Colors.black,
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }
