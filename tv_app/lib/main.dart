@@ -13,9 +13,8 @@ void main() async {
 
   if (Platform.isAndroid) {
   await RestartService.initialize();
-
-    WidgetsBinding.instance.addObserver(
-      AppLifecycleService(),
+  WidgetsBinding.instance.addObserver(
+    AppLifecycleService(),
     );
   }
 

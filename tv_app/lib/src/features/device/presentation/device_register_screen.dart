@@ -59,6 +59,9 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
         orientation: 'landscape',
       );
 
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context,'/player',);
+      
       ref.invalidate(deviceIdProvider);
       ref.invalidate(deviceCodeProvider);
     } catch (error) {
