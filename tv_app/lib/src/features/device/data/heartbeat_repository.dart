@@ -1,12 +1,17 @@
+import 'package:flutter/foundation.dart';
+
+import '../../../core/network/api_client.dart';
 import '../domain/device_heartbeat.dart';
 import 'heartbeat_local_data_source.dart';
 
-import 'package:flutter/foundation.dart';
-
 class HeartbeatRepository {
-  HeartbeatRepository(this._localDataSource);
+  HeartbeatRepository(
+    this._localDataSource,
+  );
 
   final HeartbeatLocalDataSource _localDataSource;
+
+  final ApiClient _apiClient = ApiClient();
 
   Future<DeviceHeartbeat> sendLocalHeartbeat({
     required String deviceToken,
@@ -19,14 +24,38 @@ class HeartbeatRepository {
       ipAddress: ipAddress,
     );
 
-    await _localDataSource.saveHeartbeat(heartbeat);
+    await _localDataSource.saveHeartbeat(
+      heartbeat,
+    );
 
-    debugPrint('Heartbeat: ${heartbeat.status} - ${heartbeat.lastConnectedAt}');
+    try {
+      await _apiClient.post(
+        '/devices/heartbeat',
+        body: {
+          'device_token': deviceToken,
+          'status': 'online',
+          'ip_address': ipAddress,
+        },
+      );
+
+      debugPrint(
+        'Heartbeat sent to server',
+      );
+    } catch (e) {
+      debugPrint(
+        'Heartbeat Error: $e',
+      );
+    }
+
     return heartbeat;
   }
 
-  Future<DeviceHeartbeat?> getLastHeartbeat(String deviceToken) {
-    return _localDataSource.getLastHeartbeat(deviceToken);
+  Future<DeviceHeartbeat?> getLastHeartbeat(
+    String deviceToken,
+  ) {
+    return _localDataSource.getLastHeartbeat(
+      deviceToken,
+    );
   }
 
   Future<void> clearHeartbeat() {

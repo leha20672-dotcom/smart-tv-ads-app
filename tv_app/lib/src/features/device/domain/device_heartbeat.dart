@@ -24,7 +24,7 @@ class DeviceHeartbeat {
     return {
       'device_token': deviceToken,
       'status': status,
-      'last_connectad_at': lastConnectedAt.toIso8601String(),
+      'last_connected_at': lastConnectedAt.toIso8601String(),
       'ip_address': ipAddress,
     };
   }
