@@ -7,11 +7,15 @@ import '../data/heartbeat_remote_data_source.dart';
 import '../data/heartbeat_repository.dart';
 import 'device_provider.dart';
 
-final heartbeatLocalDataSourceProvider = Provider<HeartbeatLocalDataSource>((ref) {
+final heartbeatLocalDataSourceProvider = Provider<HeartbeatLocalDataSource>((
+  ref,
+) {
   return HeartbeatLocalDataSource();
 });
 
-final heartbeatRemoteDataSourceProvider = Provider<HeartbeatRemoteDataSource>((ref) {
+final heartbeatRemoteDataSourceProvider = Provider<HeartbeatRemoteDataSource>((
+  ref,
+) {
   return HeartbeatRemoteDataSource(ref.read(apiClientProvider));
 });
 
@@ -22,8 +26,10 @@ final heartbeatRepositoryProvider = Provider<HeartbeatRepository>((ref) {
   );
 });
 
-final lastHeartbeatProvider =
-    FutureProvider.family<DateTime?, String>((ref, deviceToken) async {
+final lastHeartbeatProvider = FutureProvider.family<DateTime?, String>((
+  ref,
+  deviceToken,
+) async {
   final repository = ref.read(heartbeatRepositoryProvider);
   final heartbeat = await repository.getLastHeartbeat(deviceToken);
 
@@ -31,24 +37,24 @@ final lastHeartbeatProvider =
 });
 
 final heartbeatTimerProvider =
-    Provider.family<HeartbeatTimerController, HeartbeatTimerParams>((ref, params) {
-  final repository = ref.read(heartbeatRepositoryProvider);
+    Provider.family<HeartbeatTimerController, HeartbeatTimerParams>((
+      ref,
+      params,
+    ) {
+      final repository = ref.read(heartbeatRepositoryProvider);
 
-  final controller = HeartbeatTimerController(
-    repository: repository,
-    params: params,
-  );
+      final controller = HeartbeatTimerController(
+        repository: repository,
+        params: params,
+      );
 
-  ref.onDispose(controller.dispose);
+      ref.onDispose(controller.dispose);
 
-  return controller;
-});
+      return controller;
+    });
 
 class HeartbeatTimerController {
-  HeartbeatTimerController({
-    required this.repository,
-    required this.params,
-  });
+  HeartbeatTimerController({required this.repository, required this.params});
 
   final HeartbeatRepository repository;
   final HeartbeatTimerParams params;
@@ -60,16 +66,14 @@ class HeartbeatTimerController {
 
     _sendHeartbeat();
 
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _timer = Timer.periodic(const Duration(minutes: 10), (_) {
       _sendHeartbeat();
     });
   }
 
   Future<void> _sendHeartbeat() async {
     await repository.sendHeartbeat(
-      deviceId: params.deviceId,
       deviceToken: params.deviceToken,
-      apiToken: params.apiToken,
       ipAddress: null,
     );
   }
@@ -80,24 +84,15 @@ class HeartbeatTimerController {
 }
 
 class HeartbeatTimerParams {
-  const HeartbeatTimerParams({
-    required this.deviceId,
-    required this.deviceToken,
-    required this.apiToken,
-  });
+  const HeartbeatTimerParams({required this.deviceToken});
 
-  final int deviceId;
   final String deviceToken;
-  final String? apiToken;
 
   @override
   bool operator ==(Object other) {
-    return other is HeartbeatTimerParams &&
-        other.deviceId == deviceId &&
-        other.deviceToken == deviceToken &&
-        other.apiToken == apiToken;
+    return other is HeartbeatTimerParams && other.deviceToken == deviceToken;
   }
 
   @override
-  int get hashCode => Object.hash(deviceId, deviceToken, apiToken);
+  int get hashCode => deviceToken.hashCode;
 }

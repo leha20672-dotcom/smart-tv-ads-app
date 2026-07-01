@@ -5,14 +5,15 @@ class HeartbeatRemoteDataSource {
 
   final ApiClient _apiClient;
 
-  Future<void> sendHeartbeat({
-    required int deviceId,
-    required String apiToken,
-  }) async {
-    await _apiClient.post(
-      '/check-status',
-      bearerToken: apiToken,
-      body: {'box_id': deviceId},
-    );
+  Future<void> sendHeartbeat({required String apiToken}) async {
+    try {
+      await _apiClient.post('/check-status', bearerToken: apiToken);
+    } on ApiException catch (error) {
+      if (error.statusCode != 404 && error.statusCode != 405) {
+        rethrow;
+      }
+
+      await _apiClient.post('/devices/ping', bearerToken: apiToken);
+    }
   }
 }

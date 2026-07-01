@@ -26,6 +26,30 @@ class DeviceLocalDataSource {
     }
   }
 
+  Future<void> savePendingDevice({
+    required String deviceCode,
+    required String name,
+    required String status,
+    String? pairingCode,
+  }) async {
+    final box = await _openBox();
+
+    await box.put(StorageKeys.deviceCode, deviceCode);
+    await box.put(StorageKeys.deviceName, name);
+    await box.put(StorageKeys.deviceApprovalStatus, status);
+
+    if (pairingCode != null && pairingCode.isNotEmpty) {
+      await box.put(StorageKeys.devicePairingCode, pairingCode);
+    }
+  }
+
+  Future<void> saveDeviceToken(String deviceToken) async {
+    final box = await _openBox();
+
+    await box.put(StorageKeys.deviceToken, deviceToken);
+    await box.put(StorageKeys.deviceApprovalStatus, DeviceStatus.active);
+  }
+
   Future<int?> getDeviceId() async {
     final box = await _openBox();
     return box.get(StorageKeys.deviceId);
@@ -46,6 +70,11 @@ class DeviceLocalDataSource {
     return box.get(StorageKeys.deviceApprovalStatus);
   }
 
+  Future<String?> getDevicePairingCode() async {
+    final box = await _openBox();
+    return box.get(StorageKeys.devicePairingCode);
+  }
+
   Future<void> updateDeviceStatus(String status) async {
     final box = await _openBox();
     await box.put(StorageKeys.deviceApprovalStatus, status);
@@ -57,10 +86,9 @@ class DeviceLocalDataSource {
   }
 
   Future<bool> hasDevice() async {
-    final deviceId = await getDeviceId();
     final deviceCode = await getDeviceCode();
 
-    return deviceId != null && deviceCode != null && deviceCode.isNotEmpty;
+    return deviceCode != null && deviceCode.isNotEmpty;
   }
 
   Future<void> clearDevice() async {
@@ -71,6 +99,7 @@ class DeviceLocalDataSource {
     await box.delete(StorageKeys.deviceName);
     await box.delete(StorageKeys.deviceType);
     await box.delete(StorageKeys.deviceApprovalStatus);
+    await box.delete(StorageKeys.devicePairingCode);
     await box.delete(StorageKeys.deviceToken);
   }
 }

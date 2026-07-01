@@ -1,27 +1,27 @@
-import '../domain/address_schedule.dart';
-import '../domain/media.dart';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
 import '../domain/playable_media.dart';
-import '../domain/schedule.dart';
-import '../domain/schedule_media.dart';
+import '../domain/schedule_sync_config.dart';
+import 'media_cache_service.dart';
 import 'schedule_local_data_source.dart';
-import 'schedule_mock_data_source.dart';
 import 'schedule_remote_data_source.dart';
 
 class ScheduleRepository {
   ScheduleRepository({
-    required ScheduleMockDataSource mockDataSource,
     required ScheduleLocalDataSource localDataSource,
+    required MediaCacheService mediaCacheService,
     required ScheduleRemoteDataSource remoteDataSource,
-  })  : _mockDataSource = mockDataSource,
-        _localDataSource = localDataSource,
-        _remoteDataSource = remoteDataSource;
+  }) : _localDataSource = localDataSource,
+       _mediaCacheService = mediaCacheService,
+       _remoteDataSource = remoteDataSource;
 
-  final ScheduleMockDataSource _mockDataSource;
   final ScheduleLocalDataSource _localDataSource;
+  final MediaCacheService _mediaCacheService;
   final ScheduleRemoteDataSource _remoteDataSource;
 
   Future<List<PlayableMedia>> getCurrentPlaylist({
-    required int deviceId,
     required String? apiToken,
   }) async {
     try {
@@ -29,60 +29,98 @@ class ScheduleRepository {
         throw Exception('Missing device API token');
       }
 
-      final playlist = await _remoteDataSource.getCurrentPlaylist(
-        deviceId: deviceId,
+      final serverNow = await _remoteDataSource.getServerTime(
         apiToken: apiToken,
       );
+      await _localDataSource.cacheServerClockOffset(
+        serverNow.difference(DateTime.now()),
+      );
 
-      await _localDataSource.cacheCurrentPlaylist(playlist);
+      final playlist = await _remoteDataSource.getCurrentPlaylist(
+        apiToken: apiToken,
+        now: serverNow,
+      );
 
-      return playlist;
-    } catch (_) {
-      return _localDataSource.getCachedCurrentPlaylist();
+      final normalizedPlaylist = _mediaCacheService.normalizePlaylistMediaUrls(
+        playlist,
+      );
+      final playbackPlaylist = await _mediaCacheService
+          .attachCachedPlaylistMedia(normalizedPlaylist);
+
+      await _localDataSource.cacheCurrentPlaylist(playbackPlaylist);
+      unawaited(_cachePlaylistForOffline(playbackPlaylist, apiToken));
+
+      return playbackPlaylist;
+    } catch (error, stackTrace) {
+      debugPrint('Schedule sync failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      final cachedPlaylist = await _localDataSource.getCachedCurrentPlaylist();
+
+      if (cachedPlaylist.isNotEmpty) {
+        debugPrint(
+          'Using cached schedule playlist with ${cachedPlaylist.length} item(s).',
+        );
+        return cachedPlaylist;
+      }
+
+      throw Exception('Không thể tải lịch phát: $error');
     }
   }
 
-  Future<int?> getDeviceAddressId(int deviceId) {
-    return _mockDataSource.getDeviceAddressId(deviceId);
-  }
-
-  Future<List<AddressSchedule>> getAddressSchedules() async {
+  Future<void> _cachePlaylistForOffline(
+    List<PlayableMedia> playlist,
+    String apiToken,
+  ) async {
     try {
-      final data = await _mockDataSource.getAddressSchedules();
-      await _localDataSource.cacheAddressSchedules(data);
-      return data;
-    } catch (_) {
-      return _localDataSource.getCacheAddressSchedules();
+      final offlinePlaylist = await _mediaCacheService.cachePlaylistMedia(
+        playlist,
+        bearerToken: apiToken,
+      );
+
+      await _localDataSource.cacheCurrentPlaylist(offlinePlaylist);
+    } catch (error, stackTrace) {
+      debugPrint('Background offline media cache failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
-  Future<List<Schedule>> getSchedules() async {
+  Future<Duration> getServerClockOffset({required String? apiToken}) async {
     try {
-      final data = await _mockDataSource.getSchedules();
-      await _localDataSource.cacheSchedules(data);
-      return data;
+      if (apiToken == null || apiToken.isEmpty) {
+        throw Exception('Missing device API token');
+      }
+
+      final serverNow = await _remoteDataSource.getServerTime(
+        apiToken: apiToken,
+      );
+      final offset = serverNow.difference(DateTime.now());
+      await _localDataSource.cacheServerClockOffset(offset);
+
+      return offset;
     } catch (_) {
-      return _localDataSource.getCachedSchedules();
+      return await _localDataSource.getCachedServerClockOffset() ??
+          Duration.zero;
     }
   }
 
-  Future<List<ScheduleMedia>> getScheduleMedia() async {
+  Future<Duration> getScheduleRefreshInterval({
+    required String? apiToken,
+  }) async {
     try {
-      final data = await _mockDataSource.getScheduleMedia();
-      await _localDataSource.cacheScheduleMedia(data);
-      return data;
-    } catch (_) {
-      return _localDataSource.getCachedScheduleMedia();
-    }
-  }
+      if (apiToken == null || apiToken.isEmpty) {
+        throw Exception('Missing device API token');
+      }
 
-  Future<List<Media>> getMedia() async {
-    try {
-      final data = await _mockDataSource.getMedia();
-      await _localDataSource.cacheMedia(data);
-      return data;
+      final config = await _remoteDataSource.getSyncConfig(apiToken: apiToken);
+      await _localDataSource.cacheScheduleRefreshInterval(
+        config.refreshInterval,
+      );
+
+      return config.refreshInterval;
     } catch (_) {
-      return _localDataSource.getCachedMedia();
+      return await _localDataSource.getCachedScheduleRefreshInterval() ??
+          ScheduleSyncConfig.defaultRefreshInterval;
     }
   }
 }

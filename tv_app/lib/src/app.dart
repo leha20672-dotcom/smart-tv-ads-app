@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/auth/application/auth_provider.dart';
+import 'features/device/application/device_provider.dart';
 import 'features/device/presentation/device_register_screen.dart';
 import 'features/player/presentation/player_screen.dart';
 
@@ -24,7 +24,7 @@ class SmartTvAdsApp extends ConsumerWidget {
             return const DeviceRegisterScreen();
           }
 
-          return PlayerScreen(deviceId: routeState.deviceId!);
+          return const PlayerScreen();
         },
       ),
     );

@@ -2,7 +2,14 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class AppLogoHeader extends StatelessWidget {
-  const AppLogoHeader({super.key});
+  const AppLogoHeader({
+    super.key,
+    this.titleColor = AppColors.title,
+    this.subtitleColor = AppColors.primary,
+  });
+
+  final Color titleColor;
+  final Color subtitleColor;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +38,7 @@ class AppLogoHeader extends StatelessWidget {
               Text(
                 'Smart Ads',
                 style: TextStyle(
-                  color: AppColors.title,
+                  color: titleColor,
                   fontSize: 34,
                   fontWeight: FontWeight.w800,
                   height: 1.05,
@@ -41,7 +48,7 @@ class AppLogoHeader extends StatelessWidget {
               Text(
                 'TV PLATFORM',
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: subtitleColor,
                   fontSize: 19,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 2.8,

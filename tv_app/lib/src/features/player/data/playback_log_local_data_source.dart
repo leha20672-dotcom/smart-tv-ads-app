@@ -38,16 +38,26 @@ class PlaybackLogLocalDataSource {
     ).map(PlaybackLog.fromJson).toList();
   }
 
-  Future<List<PlaybackLog>> getUnsyncedLogs() async {
+  Future<List<PlaybackLog>> getPendingSyncLogs({
+    DateTime? now,
+    int limit = 20,
+  }) async {
     final logs = await getLogs();
+    final currentTime = now ?? DateTime.now();
 
-    // Hiện tại chưa có field is_synced
-    // Tạm thời lấy các log completed/failed để sau này gửi API
-    return logs.where(
-      (log) => 
-          log.status == PlaybackLogStatus.completed ||
-          log.status == PlaybackLogStatus.failed,
-    ).toList();
+    final pendingLogs = logs.where((log) {
+      final nextRetryAt = log.nextRetryAt;
+
+      return log.status == PlaybackLogStatus.completed &&
+          !log.isSynced &&
+          (nextRetryAt == null || !nextRetryAt.isAfter(currentTime));
+    }).toList()..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+
+    if (pendingLogs.length <= limit) {
+      return pendingLogs;
+    }
+
+    return pendingLogs.take(limit).toList();
   }
 
   Future<void> clearLogs() async {

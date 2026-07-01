@@ -1,9 +1,4 @@
-enum MediaType {
-  image,
-  video,
-  url,
-  music,
-}
+enum MediaType { image, video, url, music }
 
 class Media {
   const Media({
@@ -12,6 +7,7 @@ class Media {
     required this.filePath,
     required this.fileType,
     this.fileSize,
+    this.localFilePath,
   });
 
   final int id;
@@ -19,18 +15,65 @@ class Media {
   final String filePath;
   final MediaType fileType;
   final int? fileSize;
+  final String? localFilePath;
+
+  String get playbackPath {
+    final path = localFilePath;
+    if (path != null && path.isNotEmpty) {
+      return path;
+    }
+
+    return filePath;
+  }
 
   factory Media.fromJson(Map<String, dynamic> json) {
     final filePath =
-        (json['file_url'] ?? json['file_path'] ?? json['url'] ?? '') as String;
-    final typeValue = (json['file_type'] ?? json['type'] ?? '') as String;
+        (json['file_url'] ??
+                json['download_url'] ??
+                json['file_path'] ??
+                json['url'] ??
+                '')
+            .toString();
+    final name = (json['name'] ?? json['title'] ?? json['file_name'] ?? '')
+        .toString();
+    final typeValue =
+        (json['file_type'] ??
+                json['type'] ??
+                json['media_type'] ??
+                json['mime_type'] ??
+                '')
+            .toString();
+    final localFilePath = json['local_file_path'] ?? json['local_path'];
 
     return Media(
       id: _asInt(json['id'] ?? json['media_id']),
-      name: (json['name'] ?? json['title'] ?? '') as String,
+      name: name,
       filePath: filePath,
-      fileType: _mediaTypeFromString(typeValue.isEmpty ? filePath : typeValue),
+      fileType: _mediaTypeFromString(
+        typeValue.isEmpty ? '$filePath $name' : typeValue,
+      ),
       fileSize: _asNullableInt(json['file_size']),
+      localFilePath: localFilePath is String && localFilePath.isNotEmpty
+          ? localFilePath
+          : null,
+    );
+  }
+
+  Media copyWith({
+    int? id,
+    String? name,
+    String? filePath,
+    MediaType? fileType,
+    int? fileSize,
+    String? localFilePath,
+  }) {
+    return Media(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      filePath: filePath ?? this.filePath,
+      fileType: fileType ?? this.fileType,
+      fileSize: fileSize ?? this.fileSize,
+      localFilePath: localFilePath ?? this.localFilePath,
     );
   }
 
@@ -41,6 +84,8 @@ class Media {
       'file_path': filePath,
       'file_type': fileType.name,
       'file_size': fileSize,
+      if (localFilePath != null && localFilePath!.isNotEmpty)
+        'local_file_path': localFilePath,
     };
   }
 
@@ -74,7 +119,12 @@ class Media {
       return MediaType.video;
     }
 
-    if (normalized.endsWith('.mp3') || normalized.endsWith('.wav')) {
+    if (normalized.endsWith('.mp3') ||
+        normalized.endsWith('.wav') ||
+        normalized.endsWith('.aac') ||
+        normalized.endsWith('.m4a') ||
+        normalized.endsWith('.ogg') ||
+        normalized.endsWith('.flac')) {
       return MediaType.music;
     }
 

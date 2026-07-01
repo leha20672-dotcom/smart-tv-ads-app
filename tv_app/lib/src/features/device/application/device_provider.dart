@@ -40,30 +40,44 @@ final deviceTokenProvider = FutureProvider<String?>((ref) async {
   return repository.getDeviceToken();
 });
 
+final appRouteStateProvider = FutureProvider<AppRouteState>((ref) async {
+  final repository = ref.read(deviceRepositoryProvider);
+  final token = await repository.restoreDeviceTokenIfPossible();
+
+  return AppRouteState(deviceToken: token);
+});
+
+class AppRouteState {
+  const AppRouteState({required this.deviceToken});
+
+  final String? deviceToken;
+
+  bool get hasDeviceToken => deviceToken != null && deviceToken!.isNotEmpty;
+
+  bool get canPlay => hasDeviceToken;
+}
+
 final deviceStatusProvider = FutureProvider<String?>((ref) async {
   final repository = ref.read(deviceRepositoryProvider);
   return repository.getDeviceStatus();
 });
 
 final registerDeviceProvider =
-    FutureProvider.family<Device, RegisterDeviceParams>((ref, params) async {
+    FutureProvider.family<DeviceRegistration, RegisterDeviceParams>((
+      ref,
+      params,
+    ) async {
       final repository = ref.read(deviceRepositoryProvider);
 
-      return repository.createDevice(
-        authToken: params.authToken,
+      return repository.registerDevice(
         name: params.name,
-        type: params.type,
+        deviceCode: params.deviceCode,
       );
     });
 
 class RegisterDeviceParams {
-  const RegisterDeviceParams({
-    required this.authToken,
-    required this.name,
-    this.type = 'android_box',
-  });
+  const RegisterDeviceParams({required this.name, this.deviceCode});
 
-  final String authToken;
   final String name;
-  final String type;
+  final String? deviceCode;
 }

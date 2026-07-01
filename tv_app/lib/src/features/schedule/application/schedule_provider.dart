@@ -1,17 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../auth/application/auth_provider.dart';
 import '../../device/application/device_provider.dart';
+import '../data/media_cache_service.dart';
 import '../data/schedule_local_data_source.dart';
-import '../data/schedule_mock_data_source.dart';
 import '../data/schedule_repository.dart';
 import '../data/schedule_remote_data_source.dart';
 import '../domain/playable_media.dart';
-import 'schedule_service.dart';
-
-final scheduleMockDataSourceProvider = Provider<ScheduleMockDataSource>((ref) {
-  return ScheduleMockDataSource();
-});
 
 final scheduleLocalDataSourceProvider = Provider<ScheduleLocalDataSource>((
   ref,
@@ -25,27 +19,40 @@ final scheduleRemoteDataSourceProvider = Provider<ScheduleRemoteDataSource>((
   return ScheduleRemoteDataSource(ref.read(apiClientProvider));
 });
 
+final mediaCacheServiceProvider = Provider<MediaCacheService>((ref) {
+  return MediaCacheService();
+});
+
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
   return ScheduleRepository(
-    mockDataSource: ref.read(scheduleMockDataSourceProvider),
     localDataSource: ref.read(scheduleLocalDataSourceProvider),
+    mediaCacheService: ref.read(mediaCacheServiceProvider),
     remoteDataSource: ref.read(scheduleRemoteDataSourceProvider),
   );
 });
 
-final scheduleServiceProvider = Provider<ScheduleService>((ref) {
-  return ScheduleService();
+final currentPlaylistProvider = FutureProvider<List<PlayableMedia>>((
+  ref,
+) async {
+  final repository = ref.read(scheduleRepositoryProvider);
+  final deviceRepository = ref.read(deviceRepositoryProvider);
+  final apiToken = await deviceRepository.getDeviceToken();
+
+  return repository.getCurrentPlaylist(apiToken: apiToken);
 });
 
-final currentPlaylistProvider = FutureProvider.family<List<PlayableMedia>, int>(
-  (ref, deviceId) async {
-    final repository = ref.read(scheduleRepositoryProvider);
-    final authRepository = ref.read(authRepositoryProvider);
-    final apiToken = await authRepository.getToken();
+final scheduleRefreshIntervalProvider = FutureProvider<Duration>((ref) async {
+  final repository = ref.read(scheduleRepositoryProvider);
+  final deviceRepository = ref.read(deviceRepositoryProvider);
+  final apiToken = await deviceRepository.getDeviceToken();
 
-    return repository.getCurrentPlaylist(
-      deviceId: deviceId,
-      apiToken: apiToken,
-    );
-  },
-);
+  return repository.getScheduleRefreshInterval(apiToken: apiToken);
+});
+
+final serverClockOffsetProvider = FutureProvider<Duration>((ref) async {
+  final repository = ref.read(scheduleRepositoryProvider);
+  final deviceRepository = ref.read(deviceRepositoryProvider);
+  final apiToken = await deviceRepository.getDeviceToken();
+
+  return repository.getServerClockOffset(apiToken: apiToken);
+});

@@ -11,7 +11,10 @@ class HeartbeatLocalDataSource {
   Future<void> saveHeartbeat(DeviceHeartbeat heartbeat) async {
     final box = await _openBox();
 
-    await box.put(StorageKeys.lastConnectedAt, heartbeat.lastConnectedAt.toIso8601String());
+    await box.put(
+      StorageKeys.lastConnectedAt,
+      heartbeat.lastConnectedAt.toIso8601String(),
+    );
     await box.put(StorageKeys.deviceStatus, heartbeat.status);
   }
 

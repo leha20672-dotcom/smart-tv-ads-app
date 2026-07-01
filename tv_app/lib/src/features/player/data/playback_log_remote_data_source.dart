@@ -10,18 +10,21 @@ class PlaybackLogRemoteDataSource {
 
   Future<void> sendCompletedLog({
     required PlaybackLog log,
-    required int deviceId,
     required String apiToken,
   }) async {
     final playedAt = log.endedAt ?? DateTime.now();
 
     await _apiClient.post(
-      '/log-media',
+      '/updateMediaLog',
       bearerToken: apiToken,
       body: {
-        'box_id': deviceId,
-        'media_id': log.mediaId,
-        'played_at': DateFormat('yyyy-MM-dd HH:mm:ss').format(playedAt),
+        'schedule_id': log.scheduleId,
+        'logs': [
+          {
+            'media_id': log.mediaId,
+            'played_at': DateFormat('yyyy-MM-dd HH:mm:ss').format(playedAt),
+          },
+        ],
       },
     );
   }

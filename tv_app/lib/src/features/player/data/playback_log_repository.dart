@@ -1,6 +1,5 @@
 import 'package:uuid/uuid.dart';
 
-import '../../auth/data/auth_local_data_source.dart';
 import '../../device/data/device_local_data_source.dart';
 import '../domain/playback_log.dart';
 import 'playback_log_local_data_source.dart';
@@ -11,16 +10,13 @@ class PlaybackLogRepository {
     required PlaybackLogLocalDataSource localDataSource,
     required PlaybackLogRemoteDataSource remoteDataSource,
     required DeviceLocalDataSource deviceLocalDataSource,
-    required AuthLocalDataSource authLocalDataSource,
   }) : _localDataSource = localDataSource,
        _remoteDataSource = remoteDataSource,
-       _deviceLocalDataSource = deviceLocalDataSource,
-       _authLocalDataSource = authLocalDataSource;
+       _deviceLocalDataSource = deviceLocalDataSource;
 
   final PlaybackLogLocalDataSource _localDataSource;
   final PlaybackLogRemoteDataSource _remoteDataSource;
   final DeviceLocalDataSource _deviceLocalDataSource;
-  final AuthLocalDataSource _authLocalDataSource;
 
   Future<PlaybackLog> startLog({
     required int scheduleId,
@@ -43,6 +39,9 @@ class PlaybackLogRepository {
     final updateLog = log.copyWith(
       endedAt: DateTime.now(),
       status: PlaybackLogStatus.completed,
+      isSynced: false,
+      nextRetryAt: null,
+      syncErrorMessage: null,
     );
 
     await _localDataSource.saveLog(updateLog);
@@ -66,22 +65,80 @@ class PlaybackLogRepository {
     return _localDataSource.getLogs();
   }
 
-  Future<void> _trySendCompletedLog(PlaybackLog log) async {
-    final apiToken = await _authLocalDataSource.getToken();
-    final deviceId = await _deviceLocalDataSource.getDeviceId();
+  Future<int> retryPendingLogs({int batchSize = 20}) async {
+    final apiToken = await _deviceLocalDataSource.getDeviceToken();
 
-    if (apiToken == null || apiToken.isEmpty || deviceId == null) {
+    if (apiToken == null || apiToken.isEmpty) {
+      return 0;
+    }
+
+    final pendingLogs = await _localDataSource.getPendingSyncLogs(
+      limit: batchSize,
+    );
+    var syncedCount = 0;
+
+    for (final log in pendingLogs) {
+      final didSync = await _sendCompletedLog(log: log, apiToken: apiToken);
+
+      if (didSync) {
+        syncedCount++;
+      }
+    }
+
+    return syncedCount;
+  }
+
+  Future<void> _trySendCompletedLog(PlaybackLog log) async {
+    final apiToken = await _deviceLocalDataSource.getDeviceToken();
+
+    if (apiToken == null || apiToken.isEmpty) {
       return;
     }
 
+    await _sendCompletedLog(log: log, apiToken: apiToken);
+  }
+
+  Future<bool> _sendCompletedLog({
+    required PlaybackLog log,
+    required String apiToken,
+  }) async {
+    final now = DateTime.now();
+
     try {
-      await _remoteDataSource.sendCompletedLog(
-        log: log,
-        deviceId: deviceId,
-        apiToken: apiToken,
+      await _remoteDataSource.sendCompletedLog(log: log, apiToken: apiToken);
+
+      await _localDataSource.saveLog(
+        log.copyWith(
+          isSynced: true,
+          lastSyncAttemptAt: now,
+          nextRetryAt: null,
+          syncErrorMessage: null,
+        ),
       );
-    } catch (_) {
-      // Local log is already saved; remote sync can be retried later.
+
+      return true;
+    } catch (error) {
+      final attempts = log.syncAttempts + 1;
+
+      await _localDataSource.saveLog(
+        log.copyWith(
+          isSynced: false,
+          syncAttempts: attempts,
+          lastSyncAttemptAt: now,
+          nextRetryAt: now.add(_retryDelay(attempts)),
+          syncErrorMessage: error.toString(),
+        ),
+      );
+
+      return false;
     }
+  }
+
+  Duration _retryDelay(int attempts) {
+    if (attempts <= 1) return const Duration(minutes: 1);
+    if (attempts == 2) return const Duration(minutes: 2);
+    if (attempts == 3) return const Duration(minutes: 5);
+    if (attempts == 4) return const Duration(minutes: 15);
+    return const Duration(minutes: 30);
   }
 }

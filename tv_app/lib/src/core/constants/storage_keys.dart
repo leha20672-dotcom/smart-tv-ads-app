@@ -12,16 +12,17 @@ class StorageKeys {
   static const String deviceName = 'device_name';
   static const String deviceType = 'device_type';
   static const String deviceApprovalStatus = 'device_approval_status';
+  static const String devicePairingCode = 'device_pairing_code';
 
   static const String deviceToken = 'device_token';
 
   static const String scheduleBox = 'schedule_box';
 
-  static const String addressSchedules = 'address_schedules';
-  static const String schedules = 'schedules';
-  static const String scheduleMedia = 'schedule_media';
-  static const String media = 'media';
   static const String currentPlaylist = 'current_playlist';
+  static const String scheduleRefreshIntervalSeconds =
+      'schedule_refresh_interval_seconds';
+  static const String serverClockOffsetMilliseconds =
+      'server_clock_offset_milliseconds';
 
   static const String playbackLogBox = 'playback_log_box';
   static const String playbackLogs = 'playback_logs';

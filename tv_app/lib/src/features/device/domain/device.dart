@@ -117,3 +117,73 @@ class DeviceStatus {
         normalized == 'true';
   }
 }
+
+class DeviceRegistration {
+  const DeviceRegistration({
+    required this.deviceCode,
+    required this.name,
+    required this.status,
+    required this.pairingCode,
+    this.message,
+    this.deviceToken,
+    this.expiresAt,
+  });
+
+  final String deviceCode;
+  final String name;
+  final String status;
+  final String pairingCode;
+  final String? message;
+  final String? deviceToken;
+  final DateTime? expiresAt;
+
+  factory DeviceRegistration.fromJson({
+    required Map<String, dynamic> json,
+    required String deviceCode,
+    required String name,
+  }) {
+    final data = json['data'] is Map
+        ? Map<String, dynamic>.from(json['data'] as Map)
+        : json;
+
+    final expiresAtValue = data['expires_at'];
+
+    return DeviceRegistration(
+      deviceCode: deviceCode,
+      name: name,
+      status: (data['status'] ?? json['status'] ?? DeviceStatus.pending)
+          .toString()
+          .toLowerCase(),
+      pairingCode: (data['pairing_code'] ?? '').toString(),
+      message: (data['message'] ?? json['message'])?.toString(),
+      deviceToken: (data['device_token'] ?? json['device_token']) as String?,
+      expiresAt: expiresAtValue is String
+          ? DateTime.tryParse(expiresAtValue)
+          : null,
+    );
+  }
+}
+
+class DevicePairingStatus {
+  const DevicePairingStatus({
+    required this.status,
+    required this.message,
+    this.deviceToken,
+  });
+
+  final String status;
+  final String message;
+  final String? deviceToken;
+
+  bool get isActive => DeviceStatus.isActive(status) && hasDeviceToken;
+
+  bool get hasDeviceToken => deviceToken != null && deviceToken!.isNotEmpty;
+
+  factory DevicePairingStatus.fromJson(Map<String, dynamic> json) {
+    return DevicePairingStatus(
+      status: (json['status'] ?? DeviceStatus.pending).toString().toLowerCase(),
+      message: (json['message'] ?? '').toString(),
+      deviceToken: json['device_token'] as String?,
+    );
+  }
+}

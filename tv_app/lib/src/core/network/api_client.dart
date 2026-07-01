@@ -10,8 +10,12 @@ class ApiClient {
     : _client = client ?? http.Client(),
       _baseUrls = _buildBaseUrls(baseUrl);
 
+  static String? _lastSuccessfulBaseUrl;
+
   final http.Client _client;
   final List<String> _baseUrls;
+
+  static String? get lastSuccessfulBaseUrl => _lastSuccessfulBaseUrl;
 
   Future<Map<String, dynamic>> get(
     String path, {
@@ -24,7 +28,7 @@ class ApiClient {
             _uri(baseUrl, path, queryParameters),
             headers: _headers(bearerToken),
           )
-          .timeout(const Duration(seconds: 10)),
+          .timeout(const Duration(seconds: 4)),
     );
   }
 
@@ -40,7 +44,7 @@ class ApiClient {
             headers: _headers(bearerToken),
             body: jsonEncode(body ?? {}),
           )
-          .timeout(const Duration(seconds: 10)),
+          .timeout(const Duration(seconds: 4)),
     );
   }
 
@@ -81,7 +85,9 @@ class ApiClient {
     for (final baseUrl in _baseUrls) {
       try {
         final response = await send(baseUrl);
-        return _decodeResponse(response);
+        final decodedResponse = _decodeResponse(response);
+        _lastSuccessfulBaseUrl = baseUrl;
+        return decodedResponse;
       } on ApiException {
         rethrow;
       } on TimeoutException catch (error) {

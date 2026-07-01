@@ -26,7 +26,7 @@ class Schedule {
       name: (json['name'] ?? json['schedule_name'] ?? '') as String,
       startDate: DateTime.parse(json['start_date'] as String),
       endDate: DateTime.parse(json['end_date'] as String),
-      startTime: json['start_time'] as String, 
+      startTime: json['start_time'] as String,
       endTime: json['end_time'] as String,
       daysOfWeek: _daysOfWeekFromJson(json['days_of_week']),
     );
@@ -40,14 +40,16 @@ class Schedule {
       'end_date': endDate.toIso8601String(),
       'start_time': startTime,
       'end_time': endTime,
-      'days_of_week': daysOfWeek,  
+      'days_of_week': daysOfWeek,
     };
   }
 
   static List<int> _daysOfWeekFromJson(Object? value) {
     if (value is List) {
       final days = value.map(_asInt).where((day) => day > 0).toList();
-      return days.isEmpty ? const [1, 2, 3, 4, 5, 6, 7] : days;
+      return days.isEmpty
+          ? const [1, 2, 3, 4, 5, 6, 7]
+          : _normalizeWeekdays(days);
     }
 
     if (value is String && value.isNotEmpty) {
@@ -58,10 +60,24 @@ class Schedule {
           .where((day) => day > 0)
           .toList();
 
-      return days.isEmpty ? const [1, 2, 3, 4, 5, 6, 7] : days;
+      return days.isEmpty
+          ? const [1, 2, 3, 4, 5, 6, 7]
+          : _normalizeWeekdays(days);
     }
 
     return const [1, 2, 3, 4, 5, 6, 7];
+  }
+
+  static List<int> _normalizeWeekdays(List<int> days) {
+    if (days.contains(8)) {
+      return days
+          .map((day) => day == 8 ? 7 : day - 1)
+          .where((day) => day >= 1 && day <= 7)
+          .toSet()
+          .toList();
+    }
+
+    return days.where((day) => day >= 1 && day <= 7).toSet().toList();
   }
 
   static int _asInt(Object? value) {

@@ -5,12 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../auth/application/auth_provider.dart';
 import '../application/device_provider.dart';
 import '../domain/device.dart';
 import 'widgets/app_logo_header.dart';
 
-enum _RegisterStep { login, createDevice, waitingApproval }
+enum _PairingStep { inputName, waitingApproval }
 
 class DeviceRegisterScreen extends ConsumerStatefulWidget {
   const DeviceRegisterScreen({super.key});
@@ -21,155 +20,64 @@ class DeviceRegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
-  final TextEditingController _emailController = TextEditingController(
-    text: 'admin@gmail.com',
-  );
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _deviceNameController = TextEditingController(
-    text: 'TV Sảnh Chính',
-  );
+  final TextEditingController _deviceNameController = TextEditingController();
 
-  _RegisterStep _step = _RegisterStep.login;
-  String? _authToken;
-  int? _deviceId;
+  _PairingStep _step = _PairingStep.inputName;
   String? _deviceCode;
-  String? _deviceStatus;
+  String? _status;
   String? _errorText;
   bool _isInitializing = true;
   bool _isLoading = false;
-  bool _isPollingStatus = false;
-  Timer? _statusTimer;
+  bool _isPolling = false;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadStoredState();
+      _loadStoredDevice();
     });
   }
 
   @override
   void dispose() {
-    _statusTimer?.cancel();
-    _emailController.dispose();
-    _passwordController.dispose();
+    _pollingTimer?.cancel();
     _deviceNameController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadStoredState() async {
-    final authRepository = ref.read(authRepositoryProvider);
-    final deviceRepository = ref.read(deviceRepositoryProvider);
-
-    final token = await authRepository.getToken();
-    final deviceId = await deviceRepository.getDeviceId();
-    final deviceCode = await deviceRepository.getDeviceCode();
-    final deviceStatus = await deviceRepository.getDeviceStatus();
+  Future<void> _loadStoredDevice() async {
+    final repository = ref.read(deviceRepositoryProvider);
+    final token = await repository.getDeviceToken();
+    final deviceCode = await repository.getDeviceCode();
+    final status = await repository.getDeviceStatus();
 
     if (!mounted) return;
 
-    setState(() {
-      _authToken = token;
-      _deviceId = deviceId;
-      _deviceCode = deviceCode;
-      _deviceStatus = deviceStatus;
-      _isInitializing = false;
-      _step = _resolveStep(token: token, deviceId: deviceId);
-    });
-
-    if (token != null && token.isNotEmpty && deviceId != null) {
-      _startStatusPolling();
-    }
-  }
-
-  _RegisterStep _resolveStep({required String? token, required int? deviceId}) {
-    if (token == null || token.isEmpty) {
-      return _RegisterStep.login;
-    }
-
-    if (deviceId == null) {
-      return _RegisterStep.createDevice;
-    }
-
-    return _RegisterStep.waitingApproval;
-  }
-
-  Future<void> _login() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-
-    if (email.isEmpty || password.isEmpty) {
-      setState(() {
-        _errorText = 'Vui lòng nhập email và mật khẩu';
-      });
-      return;
-    }
-
-    setState(() {
-      _errorText = null;
-      _isLoading = true;
-    });
-
-    try {
-      final session = await ref
-          .read(authRepositoryProvider)
-          .login(email: email, password: password);
-
-      if (!mounted) return;
-
-      setState(() {
-        _authToken = session.token;
-        _step = _RegisterStep.createDevice;
-      });
-
-      ref.invalidate(authTokenProvider);
-      ref.invalidate(authUserProvider);
+    if (token != null && token.isNotEmpty) {
       ref.invalidate(appRouteStateProvider);
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _errorText = _loginErrorMessage(error);
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  String _loginErrorMessage(Object error) {
-    if (error is ApiException) {
-      if (error.statusCode == 401) {
-        return 'Email hoặc mật khẩu không đúng';
-      }
-
-      if (error.statusCode == 500) {
-        return 'API đang lỗi server (500). Kiểm tra cấu hình database Laravel.';
-      }
-
-      return 'Không thể đăng nhập: ${error.message}';
-    }
-
-    return 'Không thể kết nối API. Kiểm tra địa chỉ server hoặc mạng.';
-  }
-
-  Future<void> _createDevice() async {
-    final token = _authToken;
-    final deviceName = _deviceNameController.text.trim();
-
-    if (token == null || token.isEmpty) {
-      setState(() {
-        _step = _RegisterStep.login;
-        _errorText = 'Phiên đăng nhập đã hết hạn';
-      });
       return;
     }
 
-    if (deviceName.isEmpty) {
+    setState(() {
+      _deviceCode = deviceCode;
+      _status = status;
+      _isInitializing = false;
+      _step = deviceCode == null || deviceCode.isEmpty
+          ? _PairingStep.inputName
+          : _PairingStep.waitingApproval;
+    });
+
+    if (deviceCode != null && deviceCode.isNotEmpty) {
+      _startPairingPolling();
+    }
+  }
+
+  Future<void> _registerDevice() async {
+    final name = _deviceNameController.text.trim();
+
+    if (name.isEmpty) {
       setState(() {
         _errorText = 'Vui lòng nhập tên thiết bị';
       });
@@ -182,37 +90,33 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
     });
 
     try {
-      final device = await ref
+      final registration = await ref
           .read(deviceRepositoryProvider)
-          .createDevice(
-            authToken: token,
-            name: deviceName,
-            type: 'android_box',
-          );
+          .registerDevice(name: name, deviceCode: _deviceCode);
 
       if (!mounted) return;
 
       setState(() {
-        _deviceId = device.id;
-        _deviceCode = device.deviceCode;
-        _deviceStatus = device.status;
-        _step = _RegisterStep.waitingApproval;
+        _deviceCode = registration.deviceCode;
+        _status = registration.status;
+        _step = _PairingStep.waitingApproval;
       });
 
-      ref.invalidate(deviceIdProvider);
       ref.invalidate(deviceCodeProvider);
       ref.invalidate(deviceStatusProvider);
-      ref.invalidate(appRouteStateProvider);
 
-      if (DeviceStatus.isActive(device.status)) {
-        _openPlayerWhenReady();
-      } else {
-        _startStatusPolling();
+      if (registration.deviceToken?.isNotEmpty == true) {
+        _pollingTimer?.cancel();
+        ref.invalidate(deviceTokenProvider);
+        ref.invalidate(appRouteStateProvider);
+        return;
       }
-    } catch (_) {
+
+      _startPairingPolling();
+    } catch (error) {
       if (mounted) {
         setState(() {
-          _errorText = 'Không thể tạo thiết bị. Vui lòng kiểm tra API.';
+          _errorText = _deviceErrorMessage(error);
         });
       }
     } finally {
@@ -224,104 +128,132 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
     }
   }
 
-  void _startStatusPolling() {
-    _statusTimer?.cancel();
-    _pollDeviceStatus();
-    _statusTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      _pollDeviceStatus();
+  void _startPairingPolling() {
+    _pollingTimer?.cancel();
+    _checkPairing();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _checkPairing();
     });
   }
 
-  Future<void> _pollDeviceStatus() async {
-    if (_isPollingStatus) return;
+  Future<void> _checkPairing() async {
+    if (_isPolling) return;
 
-    final token = _authToken;
-    final deviceId = _deviceId;
-
-    if (token == null || token.isEmpty || deviceId == null) {
-      return;
-    }
-
-    _isPollingStatus = true;
+    _isPolling = true;
 
     try {
-      final status = await ref
+      final pairingStatus = await ref
           .read(deviceRepositoryProvider)
-          .refreshDeviceStatus(deviceId: deviceId, authToken: token);
+          .checkPairing();
 
       if (!mounted) return;
 
       setState(() {
-        _deviceStatus = status;
-        _errorText = null;
+        _status = pairingStatus.status;
+        _errorText = pairingStatus.isActive ? null : pairingStatus.message;
       });
 
       ref.invalidate(deviceStatusProvider);
 
-      if (DeviceStatus.isActive(status)) {
-        _openPlayerWhenReady();
+      if (pairingStatus.isActive) {
+        _pollingTimer?.cancel();
+        ref.invalidate(deviceTokenProvider);
+        ref.invalidate(appRouteStateProvider);
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         setState(() {
-          _errorText = 'Đang chờ Web Admin xác nhận thiết bị...';
+          _errorText = _deviceErrorMessage(error);
         });
       }
     } finally {
-      _isPollingStatus = false;
+      _isPolling = false;
     }
   }
 
-  void _openPlayerWhenReady() {
-    _statusTimer?.cancel();
-    ref.invalidate(appRouteStateProvider);
-  }
+  Future<void> _resetDevice() async {
+    _pollingTimer?.cancel();
 
-  Future<void> _logout() async {
-    _statusTimer?.cancel();
-
-    await ref.read(authRepositoryProvider).logout();
     await ref.read(deviceRepositoryProvider).clearDevice();
 
     if (!mounted) return;
 
     setState(() {
-      _authToken = null;
-      _deviceId = null;
       _deviceCode = null;
-      _deviceStatus = null;
+      _status = null;
       _errorText = null;
-      _step = _RegisterStep.login;
+      _step = _PairingStep.inputName;
     });
 
-    ref.invalidate(authTokenProvider);
-    ref.invalidate(authUserProvider);
-    ref.invalidate(deviceIdProvider);
     ref.invalidate(deviceCodeProvider);
     ref.invalidate(deviceStatusProvider);
+    ref.invalidate(deviceTokenProvider);
     ref.invalidate(appRouteStateProvider);
+  }
+
+  String _deviceErrorMessage(Object error) {
+    if (error is ApiException) {
+      if (_isDeviceSchemaMismatch(error.message)) {
+        return 'Database API chưa cập nhật schema mới: thiếu cột device_code trong bảng devices. Hãy chạy migration/cập nhật database Laravel rồi thử lại.';
+      }
+
+      return error.message;
+    }
+
+    return 'Không thể kết nối API. Kiểm tra địa chỉ server hoặc mạng.';
+  }
+
+  bool _isDeviceSchemaMismatch(String message) {
+    final normalizedMessage = message.toLowerCase();
+
+    return normalizedMessage.contains('sqlstate') &&
+        normalizedMessage.contains('unknown column') &&
+        normalizedMessage.contains('device_code');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 640;
+            final horizontalPadding = isCompact ? 20.0 : 48.0;
+            final cardPadding = EdgeInsets.symmetric(
+              horizontal: isCompact ? 24 : 72,
+              vertical: isCompact ? 32 : 56,
+            );
+
             return SingleChildScrollView(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                32,
+                horizontalPadding,
+                32 + MediaQuery.of(context).viewInsets.bottom,
               ),
               child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight > 64
+                      ? constraints.maxHeight - 64
+                      : 0,
+                ),
                 child: Center(
-                  child: SizedBox(
-                    width: 520,
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 770),
+                    child: Container(
+                      width: double.infinity,
+                      padding: cardPadding,
+                      decoration: BoxDecoration(
+                        color: AppColors.panel,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.panelBorder),
+                      ),
                       child: _isInitializing
-                          ? const Center(child: CircularProgressIndicator())
+                          ? const SizedBox(
+                              height: 320,
+                              child: Center(child: CircularProgressIndicator()),
+                            )
                           : _buildContent(),
                     ),
                   ),
@@ -338,15 +270,33 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const AppLogoHeader(),
+        const AppLogoHeader(titleColor: AppColors.onDark),
         const SizedBox(height: 20),
-        _buildTitle(),
+        Text(
+          _step == _PairingStep.inputName
+              ? 'Đăng ký thiết bị'
+              : 'Chờ Admin duyệt',
+          style: const TextStyle(
+            color: AppColors.onDark,
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 12),
-        _buildSubtitle(),
+        Text(
+          _step == _PairingStep.inputName
+              ? 'Nhập tên thiết bị để đăng ký TV.'
+              : 'Yêu cầu đã được gửi. Duyệt mã này trên Web Admin để kích hoạt TV.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 18,
+            color: Colors.grey.shade400,
+            height: 1.4,
+          ),
+        ),
         const SizedBox(height: 32),
-        if (_step == _RegisterStep.login) _buildLoginForm(),
-        if (_step == _RegisterStep.createDevice) _buildDeviceForm(),
-        if (_step == _RegisterStep.waitingApproval) _buildWaitingApproval(),
+        if (_step == _PairingStep.inputName) _buildRegisterForm(),
+        if (_step == _PairingStep.waitingApproval) _buildPairingStatus(),
         if (_errorText != null) ...[
           const SizedBox(height: 18),
           Text(
@@ -363,105 +313,37 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
     );
   }
 
-  Widget _buildTitle() {
-    final title = switch (_step) {
-      _RegisterStep.login => 'Đăng nhập',
-      _RegisterStep.createDevice => 'Tạo thiết bị',
-      _RegisterStep.waitingApproval => 'Chờ xác nhận',
-    };
-
-    return Text(
-      title,
-      style: const TextStyle(
-        color: AppColors.title,
-        fontSize: 32,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-
-  Widget _buildSubtitle() {
-    final text = switch (_step) {
-      _RegisterStep.login => 'Đăng nhập để tạo thiết bị và nhận lịch phát.',
-      _RegisterStep.createDevice =>
-        'Nhập tên TV/Android Box để server tạo mã thiết bị.',
-      _RegisterStep.waitingApproval =>
-        'Web Admin xác nhận xong thì TV sẽ tự chuyển sang phát quảng cáo.',
-    };
-
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 18, color: Colors.grey.shade500, height: 1.4),
-    );
-  }
-
-  Widget _buildLoginForm() {
-    return Column(
-      children: [
-        TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          enabled: !_isLoading,
-          textInputAction: TextInputAction.next,
-          style: const TextStyle(fontSize: 20, color: AppColors.title),
-          decoration: _inputDecoration('Email'),
-        ),
-        const SizedBox(height: 18),
-        TextField(
-          controller: _passwordController,
-          enabled: !_isLoading,
-          obscureText: true,
-          onSubmitted: (_) {
-            if (!_isLoading) {
-              _login();
-            }
-          },
-          style: const TextStyle(fontSize: 20, color: AppColors.title),
-          decoration: _inputDecoration('Mật khẩu'),
-        ),
-        const SizedBox(height: 28),
-        _primaryButton(label: 'Đăng nhập', onPressed: _login),
-      ],
-    );
-  }
-
-  Widget _buildDeviceForm() {
+  Widget _buildRegisterForm() {
     return Column(
       children: [
         TextField(
           controller: _deviceNameController,
+          cursorColor: AppColors.primary,
           textAlign: TextAlign.center,
           enabled: !_isLoading,
           onSubmitted: (_) {
             if (!_isLoading) {
-              _createDevice();
+              _registerDevice();
             }
           },
           style: const TextStyle(
             fontSize: 22,
-            color: AppColors.title,
+            color: AppColors.onDark,
             fontWeight: FontWeight.bold,
           ),
           decoration: _inputDecoration('Tên thiết bị'),
         ),
         const SizedBox(height: 28),
-        _primaryButton(label: 'Tạo mã thiết bị', onPressed: _createDevice),
-        const SizedBox(height: 18),
-        TextButton(
-          onPressed: _isLoading ? null : _logout,
-          child: const Text('Đăng xuất'),
+        _primaryButton(
+          label: 'Gửi yêu cầu đăng ký',
+          loadingLabel: 'Đang gửi yêu cầu...',
+          onPressed: _registerDevice,
         ),
       ],
     );
   }
 
-  Widget _buildWaitingApproval() {
-    final deviceCode =
-        _deviceCode ?? (_deviceId == null ? '' : 'TV-$_deviceId');
-    final status = _deviceStatus ?? DeviceStatus.pending;
-    final isActive = DeviceStatus.isActive(status);
-
+  Widget _buildPairingStatus() {
     return Column(
       children: [
         Container(
@@ -480,30 +362,31 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                deviceCode,
+                _deviceCode ?? '',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: AppColors.title,
-                  fontSize: 36,
+                  color: AppColors.onDark,
+                  fontSize: 40,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
+                  letterSpacing: 3,
                 ),
               ),
               const SizedBox(height: 18),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (!isActive)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  if (!isActive) const SizedBox(width: 12),
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
                   Text(
-                    isActive ? 'Đã xác nhận' : 'Đang chờ xác nhận',
-                    style: TextStyle(
-                      color: isActive ? Colors.greenAccent : Colors.white70,
+                    _status == DeviceStatus.active
+                        ? 'Đã kích hoạt'
+                        : 'Đang chờ Admin duyệt',
+                    style: const TextStyle(
+                      color: Colors.white70,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
@@ -514,14 +397,11 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
           ),
         ),
         const SizedBox(height: 28),
-        _primaryButton(
-          label: 'Kiểm tra trạng thái',
-          onPressed: _pollDeviceStatus,
-        ),
+        _primaryButton(label: 'Kiểm tra lại', onPressed: _checkPairing),
         const SizedBox(height: 18),
         TextButton(
-          onPressed: _isLoading ? null : _logout,
-          child: const Text('Đăng xuất'),
+          onPressed: _isLoading ? null : _resetDevice,
+          child: const Text('Đăng ký lại'),
         ),
       ],
     );
@@ -531,21 +411,21 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
     return InputDecoration(
       labelText: label,
       floatingLabelBehavior: FloatingLabelBehavior.auto,
-      labelStyle: TextStyle(color: Colors.grey.shade600, fontSize: 18),
+      labelStyle: TextStyle(color: Colors.grey.shade400, fontSize: 18),
       floatingLabelStyle: const TextStyle(
         color: AppColors.primary,
         fontSize: 16,
       ),
       filled: true,
-      fillColor: Colors.grey.shade200,
+      fillColor: AppColors.field,
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
+        borderSide: const BorderSide(color: AppColors.fieldBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey.shade400),
+        borderSide: const BorderSide(color: AppColors.fieldBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -557,6 +437,7 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
   Widget _primaryButton({
     required String label,
     required VoidCallback onPressed,
+    String? loadingLabel,
   }) {
     return SizedBox(
       width: double.infinity,
@@ -572,7 +453,26 @@ class _DeviceRegisterScreenState extends ConsumerState<DeviceRegisterScreen> {
           ),
         ),
         child: _isLoading
-            ? const CircularProgressIndicator()
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                  if (loadingLabel != null) ...[
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        loadingLabel,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              )
             : Text(label, textAlign: TextAlign.center),
       ),
     );

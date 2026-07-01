@@ -6,47 +6,36 @@ class DeviceRemoteDataSource {
 
   final ApiClient _apiClient;
 
-  Future<Device> createDevice({
-    required String authToken,
+  Future<DeviceRegistration> registerDevice({
+    required String deviceCode,
     required String name,
-    String type = 'android_box',
+    String? ipAddress,
   }) async {
     final response = await _apiClient.post(
-      '/devices',
-      bearerToken: authToken,
-      body: {'name': name, 'type': type},
+      '/register-device',
+      body: {
+        'device_code': deviceCode,
+        'name': name,
+        if (ipAddress != null && ipAddress.isNotEmpty) 'ip_address': ipAddress,
+      },
     );
 
-    final data = _extractDeviceJson(response);
-    data.putIfAbsent('name', () => name);
-    data.putIfAbsent('type', () => type);
-
-    return Device.fromJson(data);
+    return DeviceRegistration.fromJson(
+      json: response,
+      deviceCode: deviceCode,
+      name: name,
+    );
   }
 
-  Future<String> getDeviceStatus({
-    required int deviceId,
-    required String authToken,
+  Future<DevicePairingStatus> checkPairing({
+    required String deviceCode,
+    required String name,
   }) async {
-    final response = await _apiClient.get(
-      '/devices/$deviceId/status',
-      bearerToken: authToken,
+    final response = await _apiClient.post(
+      '/register-device',
+      body: {'device_code': deviceCode, 'name': name},
     );
 
-    return Device.statusFromJson(_extractDeviceJson(response));
-  }
-
-  Map<String, dynamic> _extractDeviceJson(Map<String, dynamic> response) {
-    final data = response['data'];
-    if (data is Map) {
-      return Map<String, dynamic>.from(data);
-    }
-
-    final device = response['device'];
-    if (device is Map) {
-      return Map<String, dynamic>.from(device);
-    }
-
-    return response;
+    return DevicePairingStatus.fromJson(response);
   }
 }
