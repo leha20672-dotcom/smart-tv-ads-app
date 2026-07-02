@@ -70,11 +70,13 @@ void main() {
       'media_id': 9,
       'title': 'Promo',
       'file_url': 'https://example.com/storage/promo.mp4',
+      'download_url': 'https://example.com/api/download-media/9',
       'type': 'video',
     });
 
     expect(media.id, 9);
     expect(media.name, 'Promo');
+    expect(media.filePath, 'https://example.com/api/download-media/9');
     expect(media.fileType, MediaType.video);
   });
 
@@ -123,6 +125,7 @@ void main() {
                 {
                   'media_id': 9,
                   'file_name': 'promo.mp4',
+                  'file_url': 'http://example.test/storage/promo.mp4',
                   'download_url': 'http://example.test/api/download-media/9',
                   'zone_name': 'main_zone',
                   'play_order': 1,
@@ -148,6 +151,10 @@ void main() {
     expect(playlist, hasLength(1));
     expect(playlist.single.scheduleId, 7);
     expect(playlist.single.media.id, 9);
+    expect(
+      playlist.single.media.filePath,
+      'http://example.test/api/download-media/9',
+    );
     expect(playlist.single.media.fileType, MediaType.video);
     expect(playlist.single.timelineStartSecond, 0);
     expect(playlist.single.timelineEndSecond, 15);

@@ -275,7 +275,8 @@ class ScheduleRemoteDataSource {
       media: Media.fromJson({
         'id': json['media_id'] ?? json['id'],
         'name': json['title'] ?? json['name'] ?? json['file_name'],
-        'file_url': json['file_url'] ?? json['download_url'] ?? json['url'],
+        'download_url': json['download_url'],
+        'file_url': json['file_url'] ?? json['url'],
         'file_path': json['file_path'] ?? json['path'],
         'file_type':
             json['file_type'] ??

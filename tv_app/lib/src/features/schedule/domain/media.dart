@@ -28,8 +28,8 @@ class Media {
 
   factory Media.fromJson(Map<String, dynamic> json) {
     final filePath =
-        (json['file_url'] ??
-                json['download_url'] ??
+        (json['download_url'] ??
+                json['file_url'] ??
                 json['file_path'] ??
                 json['url'] ??
                 '')
